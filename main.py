@@ -16,10 +16,18 @@ def clean_energy_data(data, year_period = [2020, 2025]):
         "country",
         "year",
         "iso_code",
-        "biofuel_consumption",
-        "biofuel_electricity",
-        "biofuel_share_elec",
-        "biofuel_share_energy"
+        "biofuel_share_energy",
+        "coal_share_energy",
+        "fossil_share_energy",
+        "gas_share_energy",
+        "hydro_share_energy",
+        "low_carbon_share_energy",
+        "nuclear_share_energy",
+        "oil_share_energy",
+        "other_renewables_share_energy",
+        #"renewables_share_energy",  #Commentato perché immagino contenga fonti già listate
+        "solar_share_energy",
+        "wind_share_energy"
     }
 
     data_new = data_new.filter(items = useful_columns)
