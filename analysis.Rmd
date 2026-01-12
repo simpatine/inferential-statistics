@@ -433,8 +433,8 @@ We now conduct formal hypothesis tests. For each hypothesis, we:
 **Hypothesis:**
 
 - $H_0$: There is no correlation between low-carbon energy share and mortality 
-  (ÃÂ = 0)
-- $H_1$: Higher low-carbon share is associated with lower mortality (ÃÂ < 0)
+  (rho = 0)
+- $H_1$: Higher low-carbon share is associated with lower mortality (rho < 0)
 
 **Method:** Pearson correlation test with `cor.test()`, and simple linear 
 regression
@@ -445,8 +445,8 @@ regression
 # ============================================================================
 # We use cor.test() which provides:
 # - Correlation coefficient (r)
-# - P-value for testing H0: ÃÂ = 0
-# - 95% confidence interval for ÃÂ
+# - P-value for testing H0: rho = 0
+# - 95% confidence interval for rho
 #
 # We test across multiple years for temporal robustness
 # ============================================================================
@@ -497,7 +497,7 @@ for (yr in test_years) {
   cat(sprintf("  P-value = %.4f\n", cor_test$p.value))
   cat(sprintf("  95%% CI: [%.4f, %.4f]\n", cor_test$conf.int[1], cor_test$conf.int[2]))
   
-  # Decision at ÃŽÂ± = 0.05
+  # Decision at alpha = 0.05
   if (cor_test$p.value < 0.05) {
     cat("  Decision: REJECT H0 - significant negative correlation\n\n")
   } else {
@@ -511,9 +511,9 @@ for (yr in test_years) {
 # H0: SIMPLE LINEAR REGRESSION
 # ============================================================================
 # Regression allows us to quantify the effect:
-# mortality = ÃŽÂ²0 + ÃŽÂ²1 * low_carbon_share + ÃŽÂµ
+# mortality = beta_0 + beta_1 * low_carbon_share + epsilon
 #
-# We're interested in ÃŽÂ²1: the change in mortality per 1% increase in low-carbon
+# We're interested in beta_1: the change in mortality per 1% increase in low-carbon
 # ============================================================================
 
 cat(paste(rep("=", 70), collapse = ""), "\n")
@@ -572,8 +572,8 @@ ggplot(df_test_years, aes(x = low_carbon_share_energy, y = mortality_rate)) +
 
 **Hypothesis:**
 
-- $H_0$: Coal and gas have equal effects on mortality (ÃŽÂ²_coal = ÃŽÂ²_gas)
-- $H_1$: Coal has a stronger positive effect than gas (ÃŽÂ²_coal > ÃŽÂ²_gas)
+- $H_0$: Coal and gas have equal effects on mortality (beta_coal = beta_gas)
+- $H_1$: Coal has a stronger positive effect than gas (beta_coal > beta_gas)
 
 **Method:** Multiple regression comparing coefficients, or comparison of 
 bivariate correlations
@@ -627,8 +627,8 @@ for (yr in test_years) {
 # ============================================================================
 # H1: MULTIPLE REGRESSION WITH COAL AND GAS
 # ============================================================================
-# Model: mortality = ÃŽÂ²0 + ÃŽÂ²1*coal + ÃŽÂ²2*gas + ÃŽÂµ
-# We compare ÃŽÂ²1 and ÃŽÂ²2 to see which has larger effect
+# Model: mortality = beta_0 + beta_1*coal + beta_2*gas + epsilon
+# We compare beta_1 and beta_2 to see which has larger effect
 # ============================================================================
 
 cat(paste(rep("=", 70), collapse = ""), "\n")
@@ -687,8 +687,8 @@ gridExtra::grid.arrange(p1, p2, nrow = 2)
 
 **Hypothesis:**
 
-- $H_0$: Nuclear energy share has no correlation with mortality (ÃÂ = 0)
-- $H_1$: Nuclear energy share is negatively correlated with mortality (ÃÂ < 0)
+- $H_0$: Nuclear energy share has no correlation with mortality (rho = 0)
+- $H_1$: Nuclear energy share is negatively correlated with mortality (rho < 0)
 
 **Additional test:** Two-sample comparison between nuclear and non-nuclear countries
 
@@ -831,7 +831,7 @@ correction. Also Kruskal-Wallis as non-parametric alternative.
 # We test whether mortality differs across renewable energy adoption levels
 # Groups: Low (<20%), Medium (20-40%), High (>40%)
 #
-# From course notes: ANOVA tests H0: ÃŽÂ¼1 = ÃŽÂ¼2 = ... = ÃŽÂ¼k
+# From course notes: ANOVA tests H0: mu_1 = mu_2 = ... = mu_k
 # ============================================================================
 
 cat(paste(rep("=", 70), collapse = ""), "\n")
@@ -881,7 +881,7 @@ for (yr in test_years) {
   
   # Kruskal-Wallis (non-parametric)
   kw_result <- kruskal.test(mortality_rate ~ renewable_group, data = df_yr)
-  cat(sprintf("Kruskal-Wallis: Ãâ€¡Ã‚Â² = %.4f, p = %.4f\n\n", 
+  cat(sprintf("Kruskal-Wallis: chi-square = %.4f, p = %.4f\n\n", 
               kw_result$statistic, kw_result$p.value))
   
   h4_results[[as.character(yr)]] <- list(
@@ -899,7 +899,7 @@ for (yr in test_years) {
 # H4: PAIRWISE COMPARISONS (if ANOVA is significant)
 # ============================================================================
 # Use Bonferroni correction to control family-wise error rate
-# From course notes: "corrected p-values so probability of FP > 0 is Ã¢â€°Â¤ ÃŽÂ±"
+# From course notes: "corrected p-values so probability of FP > 0 is <= alpha"
 # ============================================================================
 
 cat(paste(rep("=", 70), collapse = ""), "\n")
@@ -1040,8 +1040,8 @@ if ("gdp_per_capita" %in% names(df)) {
     cat("\nModel 2 (with GDP control):\n")
     print(summary(model2)$coefficients)
     
-    cat(sprintf("\nRÃ‚Â² without GDP: %.4f\n", summary(model1)$r.squared))
-    cat(sprintf("RÃ‚Â² with GDP: %.4f\n\n", summary(model2)$r.squared))
+    cat(sprintf("\nR-squared without GDP: %.4f\n", summary(model1)$r.squared))
+    cat(sprintf("R-squared with GDP: %.4f\n\n", summary(model2)$r.squared))
   }
 }
 ```
