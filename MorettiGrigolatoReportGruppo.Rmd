@@ -1,0 +1,1073 @@
+---
+title: "Energy Transition and Air Pollution Mortality: A Statistical Analysis"
+subtitle: "Inferential Statistics 2025/2026"
+author: "Simone Moretti and Giordano Grigolato"
+date: "`r Sys.Date()`"
+output: 
+  pdf_document: 
+    toc: true
+    fig_height: 6
+    number_sections: true
+editor_options: 
+  markdown: 
+    wrap: 80
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,           
+  warning = FALSE,      
+  message = FALSE,      
+  fig.width = 10,       
+  fig.height = 6,        
+  fig.align = "center"   
+)
+
+# Load required libraries
+# - tidyverse: data manipulation and visualization (includes ggplot2, dplyr)
+# - corrplot: correlation matrix visualization
+# - knitr: table formatting
+library(tidyverse)
+library(corrplot)
+library(knitr)
+library(dplyr)
+library(ggplot2)
+
+# Set a nice color palette for our plots
+energy_colors <- c(
+  "fossil" = "#8B4513",      
+  "coal" = "#2F2F2F",        
+  "gas" = "#FF8C00",       
+  "nuclear" = "#32CD32",     
+  "hydro" = "#1E90FF",       
+  "solar" = "#FFD700",       
+  "wind" = "#9400D3",
+  "renewable" = "#228B22",       
+  "low_carbon" = "#ff0000ff"  
+)
+```
+
+\clearpage
+\thispagestyle{empty}
+
+\begin{center}
+\Large \textbf{Abstract}
+\end{center}
+
+\vspace{1cm}
+
+This study investigates the relationship between energy mix composition and air-pollution-related mortality using cross-country data covering the period 2010--2019. The analysis focuses on the health implications of different energy sources, with particular attention to low-carbon technologies, fossil fuels, and nuclear energy. Using harmonized international data on energy shares, mortality rates, and economic indicators, we apply correlation analysis and linear regression models to evaluate several hypotheses and assess temporal robustness across multiple years.
+
+The results indicate that the aggregate share of low-carbon energy is weakly and negatively associated with mortality, but the relationship is not statistically significant, even after controlling for GDP per capita as a proxy for economic development. In contrast, fossil fuel composition plays a significant role: coal exhibits a strong and robust positive association with mortality, while natural gas shows a substantially weaker effect. Multiple regression analyses consistently confirm that coal has a markedly stronger adverse association with mortality than gas. Contrary to expectations, nuclear energy is not associated with lower mortality in the data, with observed differences likely driven by confounding factors rather than causal effects.
+
+Overall, the findings suggest that reducing reliance on highly polluting fossil fuels—especially coal—may yield clearer health benefits than simply increasing the share of low-carbon energy in aggregate. The analysis highlights the importance of accounting for confounding factors and suggests that more granular data and causal identification strategies are required to fully assess the health impacts of the energy transition.
+
+\vfill
+\clearpage
+
+# Introduction
+
+The global transition toward cleaner energy systems is widely regarded as a key policy instrument for addressing both climate change and public health concerns. Fossil fuel combustion—particularly from coal and, to a lesser extent, natural gas—is a major source of air pollutants such as particulate matter and nitrogen oxides, which are known to contribute to increased morbidity and mortality. As a result, shifting the energy mix toward low-carbon sources, including renewables and nuclear power, is often expected to yield measurable health benefits alongside environmental gains.
+
+Despite this theoretical link, empirical evidence on the relationship between energy composition and population health remains mixed, especially in cross-country settings where energy systems, economic development, and demographic structures differ substantially. In particular, it is unclear whether higher shares of low-carbon energy are associated with lower all-cause mortality once heterogeneity across countries is taken into account, and whether different fossil fuels exert distinct health effects.
+
+This study provides a statistical analysis of the relationship between energy source composition and air-pollution-related mortality across a large international panel of countries over the period 2010–2019. Using harmonized data on energy shares, mortality rates, and economic indicators, we examine three main research questions. First, we assess whether a higher share of low-carbon energy is associated with lower mortality rates. Second, we test whether coal-based energy has a stronger adverse association with mortality than natural gas. Third, we investigate the relationship between nuclear energy use and mortality, and assess the role of economic development—proxied by GDP per capita—as a potential confounding factor. The analysis relies on correlation tests, linear regression models, and temporal robustness checks across multiple years.
+
+
+# Data Description
+
+## Data Sources
+
+The analysis is based on two main data sources providing cross-country information on energy production and mortality.  
+Energy data are obtained from a harmonized international dataset reporting the share of different energy sources in total primary energy consumption. The dataset includes annual observations for multiple countries and distinguishes between fossil fuels (coal, natural gas, and oil) and low-carbon energy sources, including renewables and nuclear power. Additional macroeconomic variables, such as GDP and population, are also included.
+
+Mortality data are sourced from an international health statistics database and report annual mortality attributable to air pollution for each country. Mortality figures are expressed as rates per 100,000 inhabitants, ensuring comparability across countries with different population sizes.
+
+Both datasets cover the period from 2010 to 2019 and are indexed by country and year using standardized ISO country codes.
+
+## Data Integration
+
+The two datasets are merged using the ISO country code and year as joint keys. Observations with missing identifiers or inconsistent country–year matches are excluded. After merging and cleaning, the final dataset consists of a balanced cross-country panel covering 182 countries over multiple years, with a total of 1,818 country-year observations.
+
+Only years with sufficient data availability across countries are retained for the empirical analysis. To assess temporal robustness, all hypothesis tests are conducted separately for selected years (2015, 2017, and 2019), rather than pooling observations across time.
+
+## Variable Construction
+
+The primary outcome variable is the air-pollution-related mortality rate, measured as deaths per 100,000 inhabitants.
+
+Energy composition variables are expressed as percentage shares of total energy consumption. In particular:
+- **Fossil energy share** is defined as the combined share of coal, natural gas, and oil.
+- **Low-carbon energy share** aggregates renewable energy sources and nuclear power.
+- Individual energy shares for coal, gas, renewables, and nuclear energy are retained to allow source-specific analysis.
+
+To facilitate interpretation and group-based comparisons, renewable energy share is also discretized into categorical levels (low, medium, and high adoption). A binary indicator is constructed to identify countries that use nuclear energy.
+
+GDP per capita is included as a macroeconomic control variable and is used to assess potential confounding effects between economic development, energy composition, and mortality outcomes.
+
+## Data Cleaning and Transformations
+
+All energy shares are bounded between 0 and 100 and checked for internal consistency. Observations with missing values in key variables are excluded on a listwise basis to ensure comparability across statistical tests. No imputation procedures are applied.
+
+Summary statistics and exploratory visualizations are used to inspect the distributions of energy shares and mortality rates and to identify potential outliers. All subsequent statistical analyses are conducted using the cleaned and prepared dataset.
+
+
+```{r load-data}
+# ============================================================================
+# DATA LOADING
+# ============================================================================
+# We load two datasets:
+# 1. Energy data: share of different energy sources by country and year
+# 2. Mortality data: air pollution attributable deaths by country and year
+#
+# Data sources:
+# - Energy: Our World in Data (OWID) energy dataset
+# - Mortality: WHO Global Health Observatory
+# ============================================================================
+
+energy_data <- read.csv("data/energy_clean.csv")
+mortality_data <- read.csv("data/mortality_clean.csv")
+
+cat("=== Energy Data Structure ===\n")
+str(energy_data)
+
+cat("\n=== Mortality Data Structure ===\n")
+str(mortality_data)
+```
+
+```{r merge-data}
+# ============================================================================
+# DATA MERGING
+# ============================================================================
+# We merge energy and mortality data by country and year
+# This creates our main analysis dataset
+# ============================================================================
+
+# Merge datasets on country (iso_code) and year
+# Using inner join to keep only matching observations
+df <- merge(
+  energy_data, 
+  mortality_data, 
+  by = c("iso_code", "year"),
+  all = FALSE  
+)
+
+cat(length(unique(energy_data$iso_code)), sep = " ", fill = FALSE, labels = NULL, append = FALSE)
+# Check the merged result
+cat("Merged dataset dimensions:", nrow(df), "rows x", ncol(df), "columns\n")
+cat("Years available:", sort(unique(df$year)), "\n")
+cat("Number of countries:", length(unique(df$iso_code)), "\n")
+```
+
+```{r create-variables}
+# ============================================================================
+# DERIVED VARIABLES
+# ============================================================================
+# We create additional variables useful for our analysis:
+# - renewable_share: sum of all renewable sources
+# - renewable_group: categorical grouping for ANOVA
+# - has_nuclear: binary indicator for nuclear users
+# ============================================================================
+
+df$mortality_rate <- df$deaths / df$population * 100000
+
+# Total renewable share (hydro + solar + wind + biofuel + other renewables)
+df$renewable_share <- df$hydro_share_energy + df$solar_share_energy + 
+                      df$wind_share_energy + df$biofuel_share_energy + 
+                      df$other_renewables_share_energy
+
+# Categorical grouping for renewable share (for ANOVA)
+# Groups: Low (<20%), Medium (20-40%), High (>40%)
+df$renewable_group <- cut(
+  df$renewable_share,
+  breaks = c(-Inf, 20, 40, Inf),
+  labels = c("Low (<20%)", "Medium (20-40%)", "High (>40%)")
+)
+
+# Binary indicator: does this country use nuclear?
+df$has_nuclear <- ifelse(df$nuclear_share_energy > 0, "Nuclear User", "No Nuclear")
+
+# Display sample of the prepared data
+df_sample <- head(df)
+kable(df_sample, caption = "Sample of merged and prepared data")
+```
+
+```{r summary-energy}
+# ============================================================================
+# DESCRIPTIVE STATISTICS: ENERGY VARIABLES
+# ============================================================================
+# Calculate key statistics for all energy share variables
+# Following the course approach: mean, sd, median, quantiles
+# ============================================================================
+
+# Select energy share columns - focusing on burnable vs low-carbon sources
+energy_vars <- c("fossil_share_energy", "coal_share_energy", "gas_share_energy",
+                 "nuclear_share_energy", "low_carbon_share_energy", "renewable_share")
+
+# Calculate summary statistics
+df_energy <- select(df, all_of(energy_vars))
+energy_summary <- summarise(df_energy, across(everything(), list(
+  n = ~sum(!is.na(.)),
+  mean = ~mean(., na.rm = TRUE),
+  sd = ~sd(., na.rm = TRUE),
+  median = ~median(., na.rm = TRUE),
+  q25 = ~quantile(., 0.25, na.rm = TRUE),
+  q75 = ~quantile(., 0.75, na.rm = TRUE)
+)))
+energy_summary <- pivot_longer(energy_summary, everything())
+energy_summary <- separate(energy_summary, name, into = c("variable", "statistic"), sep = "_(?=[^_]+$)")
+energy_summary <- pivot_wider(energy_summary, names_from = statistic, values_from = value)
+
+# Clean up variable names for display
+energy_summary$variable <- c("Fossil (total)", "Coal", "Gas", 
+                              "Nuclear", "Low-Carbon (total)", "Renewable (total)")
+
+# Display the table
+energy_summary <- mutate(energy_summary, across(where(is.numeric), ~round(., 2)))
+kable(energy_summary, caption = "Summary Statistics: Energy Source Shares (%)")
+```
+
+```{r summary-mortality}
+# ============================================================================
+# DESCRIPTIVE STATISTICS: MORTALITY VARIABLE
+# ============================================================================
+# Summary statistics for our outcome variable: air pollution mortality
+# ============================================================================
+
+mortality_summary <- summarise(df,
+  n = sum(!is.na(mortality_rate)),
+  mean = mean(mortality_rate, na.rm = TRUE),
+  sd = sd(mortality_rate, na.rm = TRUE),
+  median = median(mortality_rate, na.rm = TRUE),
+  q25 = quantile(mortality_rate, 0.25, na.rm = TRUE),
+  q75 = quantile(mortality_rate, 0.75, na.rm = TRUE),
+  min = min(mortality_rate, na.rm = TRUE),
+  max = max(mortality_rate, na.rm = TRUE)
+)
+
+mortality_summary <- mutate(mortality_summary, across(where(is.numeric), ~round(., 2)))
+kable(mortality_summary, caption = "Summary Statistics: Air Pollution Mortality Rate")
+```
+## Exploratory Data Analysis and Descriptive Statistics
+
+This section provides an initial descriptive analysis of the data, aimed at summarizing the main features of energy composition and mortality rates and exploring preliminary relationships between variables. The analysis relies on summary statistics, graphical inspection, and pairwise correlations, and serves as a foundation for the subsequent inferential analysis.
+
+### Descriptive Statistics
+
+Table~\ref{tab:summary_stats} reports summary statistics for the main energy source shares and the air-pollution-related mortality rate. Fossil fuels account for a substantial fraction of total energy consumption, with an average share of approximately 70\%, although the distribution is highly dispersed across countries. Coal and natural gas exhibit markedly different distributions: coal has a low median value close to zero but a high standard deviation, indicating that a small number of countries rely heavily on coal, while many others use little or none. Gas displays a higher average share but also substantial variability.
+
+Low-carbon energy sources show a wide dispersion as well. The average low-carbon share is around 31\%, with a median below 20\%, suggesting that more than half of the countries rely predominantly on fossil fuels. Renewable energy shares display strong right skewness, reflecting the presence of countries with very high renewable penetration alongside many countries with limited adoption. Nuclear energy is used by a relatively small subset of countries, as reflected in its low mean and a median equal to zero.
+
+Mortality rates exhibit considerable heterogeneity across countries, with a mean of approximately 94 deaths per 100,000 inhabitants and a wide interquartile range. The distribution is right-skewed, with a small number of countries experiencing very high mortality rates.
+
+### Distributional Analysis
+
+Figure~\ref{fig:mortality_dist} shows the distribution of air-pollution-related mortality rates across all country-year observations. The density is highly asymmetric, with most observations concentrated at relatively low mortality levels and a long right tail. This pattern suggests the presence of outliers and motivates the use of robust visual inspection alongside formal statistical tests.
+
+Figure~\ref{fig:energy_dist} illustrates the distributions of major energy source shares. Fossil fuel shares are heavily concentrated at high values, whereas coal and gas exhibit zero-inflated distributions. Low-carbon and renewable energy shares are more evenly spread but remain strongly right-skewed.
+
+### Group Comparisons
+
+To provide an initial assessment of the relationship between energy composition and mortality, mortality rates are compared across groups defined by renewable energy adoption levels. Figure~\ref{fig:renewable_boxplot} presents boxplots of mortality rates for low, medium, and high renewable share categories. Countries with higher renewable adoption tend to display lower median mortality rates, although the overlap between groups is substantial and within-group variability remains large.
+
+A similar comparison is conducted for nuclear energy use. Figure~\ref{fig:nuclear_boxplot} compares mortality rates between nuclear-using and non-nuclear countries. Nuclear-using countries exhibit higher median mortality rates, although dispersion is wide in both groups, suggesting that simple group comparisons may be influenced by confounding factors.
+
+### Scatter Plots and Correlations
+
+Figure~\ref{fig:lowcarbon_scatter} displays the scatter plot of low-carbon energy share against mortality rates, along with a fitted linear regression line. The relationship appears weakly negative, with substantial dispersion around the fitted line, indicating limited explanatory power.
+
+Pairwise scatter plots of mortality and individual energy shares further highlight heterogeneous patterns across energy sources. Coal share shows a clear positive association with mortality, while gas exhibits a weaker positive relationship. Renewable and low-carbon shares display diffuse patterns with no strong linear trend.
+
+These visual findings are corroborated by Pearson correlation coefficients (Figure~\ref{fig:correlations}). Coal displays the strongest positive correlation with mortality (approximately 0.32), followed by gas (around 0.25). In contrast, renewable and low-carbon energy shares exhibit weak negative correlations, while nuclear energy shows a small positive correlation.
+
+Overall, the exploratory analysis suggests that fossil fuel intensity—particularly coal—is strongly associated with higher mortality rates, whereas the relationship between low-carbon energy and mortality is weaker and less clearly identifiable at the descriptive level. These patterns motivate the formal hypothesis testing and regression analysis presented in the following sections.
+
+# Data Exploration
+
+```{r hist-mortality, fig.cap="Distribution of air pollution mortality rates across all country-years"}
+ggplot(df, aes(x = mortality_rate)) +
+  geom_histogram(aes(y = after_stat(density)), 
+                 bins = 30, 
+                 fill = "steelblue", 
+                 color = "white",
+                 alpha = 0.7) +
+  labs(
+    title = "Distribution of Air Pollution Mortality Rates",
+    x = "Mortality Rate (deaths per 100,000)",
+    y = "Density"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+```
+
+```{r hist-energy-sources, fig.height=8, fig.cap="Distribution of major energy source shares"}
+# ============================================================================
+# HISTOGRAMS: ENERGY SOURCE DISTRIBUTIONS
+# ============================================================================
+# Multiple histograms showing the distribution of different energy sources
+# This helps identify skewness and potential outliers
+# ============================================================================
+
+# Reshape data for faceted plotting
+df_select <- select(df, iso_code, year, fossil_share_energy, coal_share_energy, 
+       gas_share_energy, nuclear_share_energy, low_carbon_share_energy,
+       renewable_share)
+df_long <- pivot_longer(df_select,
+  cols = -c(iso_code, year),
+  names_to = "energy_type",
+  values_to = "share"
+)
+df_long$energy_type <- factor(df_long$energy_type, 
+  levels = c("fossil_share_energy", "coal_share_energy", "gas_share_energy",
+             "nuclear_share_energy", "renewable_share", "low_carbon_share_energy"),
+  labels = c("Fossil", "Coal", "Gas", "Nuclear", "Renewable", "Low Carbon"))
+
+ggplot(df_long, aes(x = share, fill = energy_type)) + 
+  geom_histogram(bins = 25, color = "white", alpha = 0.8) + 
+  facet_wrap(~energy_type, scales = "free_y", ncol = 2) + 
+  scale_fill_manual(values = c("Fossil" = "#8B4513", "Coal" = "#2F2F2F", 
+                               "Gas" = "#FF8C00", "Nuclear" = "#32CD32", 
+                               "Renewable" = "#228B22", "Low Carbon" = "#ff0000ff")) + 
+  labs(
+    title = "Distribution of Energy Source Shares", 
+    x = "Share of Total Energy (%)", 
+    y = "Count" 
+  ) + 
+  theme_minimal() + 
+  theme(legend.position = "none", 
+        plot.title = element_text(face = "bold", size = 14)) 
+
+print(energy_colors["fossil"]) 
+```
+
+### Boxplots for Group Comparisons
+
+```{r boxplot-renewable-groups, fig.cap="Mortality rates by renewable energy adoption level"}
+# ============================================================================
+# BOXPLOT: MORTALITY BY RENEWABLE GROUPS
+# ============================================================================
+# Boxplots are excellent for comparing distributions across groups
+# Course notes: "gives us insight about center, spread, and symmetry"
+# ============================================================================
+
+ggplot(df, aes(x = renewable_group, y = mortality_rate, fill = renewable_group)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 1) +
+  scale_fill_brewer(palette = "Greens") +
+  labs(
+    title = "Air Pollution Mortality by Renewable Energy Adoption Level",
+    subtitle = "Boxplots with individual data points",
+    x = "Renewable Energy Share Category",
+    y = "Mortality Rate (per 100,000)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14))
+```
+
+```{r boxplot-nuclear, fig.cap="Mortality comparison: nuclear vs non-nuclear countries"}
+# ============================================================================
+# BOXPLOT: NUCLEAR VS NON-NUCLEAR COUNTRIES
+# ============================================================================
+# Compare mortality distributions between countries with and without nuclear
+# ============================================================================
+
+ggplot(df, aes(x = has_nuclear, y = mortality_rate, fill = has_nuclear)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = 21) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 1) +
+  scale_fill_manual(values = c("Nuclear User" = "#9400D3", "No Nuclear" = "#A9A9A9")) +
+  labs(
+    title = "Air Pollution Mortality: Nuclear vs Non-Nuclear Countries",
+    x = "Nuclear Energy Status",
+    y = "Mortality Rate (per 100,000)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14))
+```
+
+### Scatter Plots and Correlations
+
+```{r scatter-lowcarbon, fig.cap="Relationship between low-carbon energy share and mortality"}
+# ============================================================================
+# SCATTER PLOT: LOW CARBON vs MORTALITY
+# ============================================================================
+# The scatter plot helps visualize the linear relationship
+# We add a regression line to show the trend
+# ============================================================================
+
+ggplot(df, aes(x = low_carbon_share_energy, y = mortality_rate)) +
+  geom_point(alpha = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "darkred", se = TRUE) +
+  labs(
+    title = "Low-Carbon Energy Share vs Air Pollution Mortality",
+    subtitle = "Linear regression line with 95% confidence band",
+    x = "Low-Carbon Energy Share (%)",
+    y = "Mortality Rate (per 100,000)"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+```
+
+```{r scatter-matrix, fig.height=10, fig.width=10, fig.cap="Pairwise scatter plots of key variables"}
+# ============================================================================
+# SCATTER PLOT MATRIX
+# ============================================================================
+# Visualize all pairwise relationships between energy sources and mortality
+# ============================================================================
+
+pairs_vars <- select(df, mortality_rate, fossil_share_energy, coal_share_energy, 
+       gas_share_energy, nuclear_share_energy, renewable_share)
+
+pairs(pairs_vars, 
+      main = "Pairwise Relationships: Energy Sources and Mortality",
+      pch = 19, 
+      col = adjustcolor("steelblue", alpha = 0.4),
+      lower.panel = NULL)
+```
+
+```{r correlation-mortality, fig.cap="Correlation between energy sources and mortality"}
+# ============================================================================
+# CORRELATION WITH MORTALITY
+# ============================================================================
+# We focus on what matters: how each energy source correlates with mortality
+# ============================================================================
+
+# Select variables
+cor_vars <- select(df, mortality_rate, fossil_share_energy, coal_share_energy, 
+       gas_share_energy, nuclear_share_energy, low_carbon_share_energy,
+       renewable_share)
+cor_vars <- na.omit(cor_vars)
+
+# Calculate correlations with mortality only
+energy_cols <- setdiff(names(cor_vars), "mortality_rate")
+correlations <- sapply(energy_cols, function(col) {
+  cor(cor_vars$mortality_rate, cor_vars[[col]], use = "complete.obs")
+})
+
+# Create data frame for plotting
+cor_df <- data.frame(
+  energy_type = c("Fossil", "Coal", "Gas", "Nuclear", "Low-Carbon", "Renewable"),
+  correlation = correlations
+)
+cor_df$energy_type <- factor(cor_df$energy_type, 
+                              levels = cor_df$energy_type[order(cor_df$correlation)])
+
+# Bar chart of correlations
+ggplot(cor_df, aes(x = energy_type, y = correlation, 
+                   fill = ifelse(correlation > 0, "Positive", "Negative"))) +
+  geom_col(alpha = 0.8, width = 0.7) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "black") +
+  geom_text(aes(label = sprintf("%.3f", correlation)), 
+            hjust = ifelse(cor_df$correlation > 0, -0.1, 1.1), size = 3.5) +
+  coord_flip() +
+  scale_fill_manual(values = c("Positive" = "#D73027", "Negative" = "#1A9850")) +
+  labs(
+    title = "Correlation with Air Pollution Mortality",
+    subtitle = "Pearson correlation coefficients",
+    x = NULL,
+    y = "Correlation with Mortality Rate"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14)) +
+  ylim(min(cor_df$correlation) - 0.1, max(cor_df$correlation) + 0.1)
+```
+
+---
+\clearpage
+
+# Statistical Methods
+
+
+We now conduct formal hypothesis tests. For each hypothesis, we:
+
+1. State the null and alternative hypotheses
+2. Apply the appropriate test from the course
+3. **Test across multiple years (2015, 2017, 2019) for temporal robustness**
+4. Interpret the results
+
+
+# Research Question and Empirical Strategy
+
+# Research Question and Empirical Strategy
+
+The objective of this analysis is to assess whether a higher share of low-carbon energy in the energy mix is associated with lower mortality rates. The underlying hypothesis is that low-carbon energy sources—such as renewables and nuclear—reduce air pollution and related environmental externalities, which may have measurable effects on population health.
+
+Formally, we investigate the relationship between the share of low-carbon energy production and the all-cause mortality rate across observational units (e.g. countries) in a given year. The analysis is framed as a statistical hypothesis test on the population correlation coefficient between low-carbon energy share and mortality.
+
+Let $\rho$ denote the true correlation between the two variables. The hypotheses are defined as:
+
+$$
+\begin{aligned}
+H_0 &: \rho = 0 \quad \text{(no association)} \\
+H_1 &: \rho < 0 \quad \text{(higher low-carbon share is associated with lower mortality)}
+\end{aligned}
+$$
+
+The alternative hypothesis is one-sided, reflecting the directional expectation derived from environmental and public health considerations.
+
+To test these hypotheses, we adopt a two-step empirical strategy combining correlation analysis and linear regression. The analysis is conducted separately for multiple years in order to assess the temporal robustness of the relationship.
+
+For each selected year, we compute the Pearson correlation coefficient between the low-carbon energy share and the mortality rate. Statistical inference is performed using a Pearson correlation test, which evaluates the null hypothesis $H_0: \rho = 0$ against the one-sided alternative $H_1: \rho < 0$. The test provides the estimated correlation coefficient $r$, a p-value for the hypothesis test, and a 95% confidence interval for $\rho$. Only years with a sufficient number of observations are included in the analysis to ensure statistical reliability.
+
+To complement the correlation analysis and quantify the magnitude of the relationship, we estimate a simple linear regression model of the form:
+
+$$
+\text{Mortality}_i = \beta_0 + \beta_1 \cdot \text{LowCarbonShare}_i + \varepsilon_i
+$$
+
+where $\text{Mortality}_i$ denotes the mortality rate and $\text{LowCarbonShare}_i$ represents the share of low-carbon energy. The coefficient $\beta_1$ captures the marginal effect of a one-percentage-point increase in low-carbon energy share on mortality and is the primary parameter of interest. A negative and statistically significant estimate of $\beta_1$ would be consistent with the alternative hypothesis. Model fit is evaluated using standard diagnostics such as the $R^2$ and the residual standard error.
+
+Both the correlation tests and regression analyses are repeated independently for multiple years to verify whether the observed relationship is stable over time rather than driven by idiosyncratic conditions in a single year. Consistency in sign and statistical significance across years is interpreted as evidence of temporal robustness.
+
+Finally, the relationship between low-carbon energy share and mortality is visualized using scatter plots with fitted linear regression lines, faceted by year. These visualizations support the interpretation of the statistical results and serve as a diagnostic tool to assess linearity, dispersion, and the presence of potential outliers.
+
+```{r h0-correlation}
+# ============================================================================
+# H0: CORRELATION TEST - LOW CARBON vs MORTALITY
+# ============================================================================
+# We use cor.test() which provides:
+# - Correlation coefficient (r)
+# - P-value for testing H0: rho = 0
+# - 95% confidence interval for rho
+#
+# We test across multiple years for temporal robustness
+# ============================================================================
+
+# Define years to test (temporal robustness)
+test_years <- c(2015, 2017, 2019)
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("H0: LOW-CARBON ENERGY AND MORTALITY - TEMPORAL ROBUSTNESS\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+# Store results for summary table
+h0_results <- list()
+
+for (yr in test_years) {
+  cat(paste0("--- Year ", yr, " ---\n"))
+  
+  # Filter data for this year
+  df_yr <- filter(df, year == yr)
+  
+  # Skip if insufficient data
+  if (nrow(df_yr) < 10) {
+    cat("Insufficient data for this year\n\n")
+    next
+  }
+  
+  # Perform correlation test
+  cor_test <- cor.test(
+    df_yr$low_carbon_share_energy, 
+    df_yr$mortality_rate,
+    method = "pearson",
+    alternative = "less"  # One-sided: expect negative correlation
+  )
+  
+  # Store results
+  h0_results[[as.character(yr)]] <- list(
+    year = yr,
+    n = nrow(df_yr),
+    r = cor_test$estimate,
+    p_value = cor_test$p.value,
+    ci_lower = cor_test$conf.int[1],
+    ci_upper = cor_test$conf.int[2]
+  )
+  
+  # Print results
+  cat(sprintf("  Sample size: n = %d\n", nrow(df_yr)))
+  cat(sprintf("  Pearson r = %.4f\n", cor_test$estimate))
+  cat(sprintf("  P-value = %.4f\n", cor_test$p.value))
+  cat(sprintf("  95%% CI: [%.4f, %.4f]\n", cor_test$conf.int[1], cor_test$conf.int[2]))
+  
+  # Decision at alpha = 0.05
+  if (cor_test$p.value < 0.05) {
+    cat("  Decision: REJECT H0 - significant negative correlation\n\n")
+  } else {
+    cat("  Decision: FAIL TO REJECT H0\n\n")
+  }
+}
+```
+
+```{r h0-regression}
+# ============================================================================
+# H0: SIMPLE LINEAR REGRESSION
+# ============================================================================
+# Regression allows us to quantify the effect:
+# mortality = beta_0 + beta_1 * low_carbon_share + epsilon
+#
+# We're interested in beta_1: the change in mortality per 1% increase in low-carbon
+# ============================================================================
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("H0: LINEAR REGRESSION ANALYSIS\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+for (yr in test_years) {
+  cat(paste0("--- Year ", yr, " ---\n"))
+  
+  df_yr <- filter(df, year == yr)
+  
+  if (nrow(df_yr) < 10) {
+    cat("Insufficient data\n\n")
+    next
+  }
+  
+  # Fit simple linear regression
+  model <- lm(mortality_rate ~ low_carbon_share_energy, data = df_yr)
+  
+  # Print summary
+  cat("\nRegression coefficients:\n")
+  print(summary(model)$coefficients)
+  cat(sprintf("\nR-squared: %.4f\n", summary(model)$r.squared))
+  cat(sprintf("Residual SE: %.4f\n\n", summary(model)$sigma))
+}
+```
+
+```{r h0-visualization, fig.cap="H0 Test: Low-carbon share vs mortality across years"}
+# ============================================================================
+# H0: VISUALIZATION ACROSS YEARS
+# ============================================================================
+
+df_test_years <- filter(df, year %in% test_years)
+
+ggplot(df_test_years, aes(x = low_carbon_share_energy, y = mortality_rate)) +
+  geom_point(alpha = 0.5, color = "steelblue") +
+  geom_smooth(method = "lm", color = "darkred", se = TRUE) +
+  facet_wrap(~year) +
+  labs(
+    title = "H0: Low-Carbon Energy vs Mortality (Temporal Robustness)",
+    subtitle = "Separate regression lines for each year",
+    x = "Low-Carbon Energy Share (%)",
+    y = "Mortality Rate (per 100,000)"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14))
+```
+
+
+## Results: Energy Sources and Mortality
+
+Figure 7 reports the Pearson correlation coefficients between mortality rates and the shares of different energy sources in the energy mix. The comparison highlights substantial heterogeneity across energy technologies.
+
+Renewable and low-carbon energy sources display weak negative correlations with mortality. In particular, renewables exhibit a correlation of approximately -0.055, while the broader low-carbon aggregate shows a slightly stronger negative association around -0.096. However, these correlations remain modest in magnitude and are not statistically significant, indicating limited explanatory power for overall mortality outcomes.
+
+Fossil-based energy sources, by contrast, are positively correlated with mortality. Coal shows the strongest positive association, with a correlation close to 0.32, followed by gas with a correlation of about 0.25. These values suggest that higher reliance on fossil fuels, especially coal, is associated with higher mortality rates. Nuclear energy displays a small negative correlation with mortality, consistent with its classification as a low-emission energy source, although the magnitude remains limited.
+
+Overall, the correlation patterns suggest a clear ranking across energy sources: coal is most strongly associated with higher mortality, followed by gas, while renewables and nuclear tend to be associated with lower mortality. Nevertheless, the relatively small magnitude of the correlations for low-carbon technologies indicates that their relationship with mortality is weak when considered in isolation.
+
+These findings are consistent with the regression and correlation analyses conducted for the low-carbon aggregate, which show stable but statistically insignificant negative associations across years. Taken together, the results suggest that while fossil fuel intensity, particularly coal, appears strongly linked to adverse health outcomes, the health benefits of low-carbon energy sources are not sufficiently strong to be detected through simple bivariate relationships with all-cause mortality.
+
+
+
+## H1: Coal Has a Stronger Effect Than Gas
+
+This hypothesis tests whether coal-based energy production has a stronger adverse effect on mortality than gas-based energy production. The underlying intuition is that coal combustion generates higher levels of harmful air pollutants compared to natural gas, potentially leading to worse population health outcomes.
+
+Formally, the hypothesis is framed in terms of a comparison between the effects of coal and gas on mortality rates. Let $\beta_{\text{coal}}$ and $\beta_{\text{gas}}$ denote the marginal effects of coal and gas energy shares, respectively. The hypotheses are defined as:
+
+$$
+\begin{aligned}
+H_0 &: \beta_{\text{coal}} = \beta_{\text{gas}} \quad \text{(equal effects on mortality)} \\
+H_1 &: \beta_{\text{coal}} > \beta_{\text{gas}} \quad \text{(coal has a stronger positive effect)}
+\end{aligned}
+$$
+
+The alternative hypothesis is one-sided, reflecting the expectation that coal is more harmful to health than gas.
+
+The empirical strategy follows two complementary approaches. First, we compute bivariate Pearson correlations between mortality rates and the share of coal energy, and between mortality rates and the share of gas energy, for each selected year. If coal has a stronger effect, we expect the correlation between coal and mortality to be larger in magnitude than that for gas, with both correlations being positive.
+
+Second, we estimate a multiple linear regression model of the form:
+
+$$
+\text{Mortality}_i = \beta_0 + \beta_1 \cdot \text{CoalShare}_i + \beta_2 \cdot \text{GasShare}_i + \varepsilon_i
+$$
+
+where $\text{CoalShare}_i$ and $\text{GasShare}_i$ represent the shares of coal and gas in the energy mix. The coefficients $\beta_1$ and $\beta_2$ capture the marginal effects of coal and gas, respectively, and their comparison is central to testing the hypothesis. Evidence in favor of $H_1$ is provided by estimates such that $\beta_1 > \beta_2$, particularly when $\beta_1$ is statistically significant and larger in magnitude.
+
+The analysis is performed separately for multiple years to assess temporal robustness. Consistency of results across years—both in terms of coefficient signs and relative magnitudes—is interpreted as evidence that the stronger effect of coal is not driven by year-specific factors.
+
+Finally, the relationship between mortality and the shares of coal and gas is visualized using scatter plots with fitted linear regression lines, faceted by year. These visualizations support the statistical analysis by highlighting differences in slope, dispersion, and potential outliers between coal and gas.
+
+```{r h1-correlations}
+# ============================================================================
+# H1: COMPARE COAL AND GAS CORRELATIONS WITH MORTALITY
+# ============================================================================
+# We compute correlations for both coal and gas with mortality
+# If coal has stronger effect, we expect |r_coal| > |r_gas| and both positive
+# ============================================================================
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("H1: COAL vs GAS EFFECT ON MORTALITY\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+h1_results <- list()
+
+for (yr in test_years) {
+  cat(paste0("--- Year ", yr, " ---\n"))
+  
+  df_yr <- filter(df, year == yr)
+  
+  if (nrow(df_yr) < 10) {
+    cat("Insufficient data\n\n")
+    next
+  }
+  
+  # Correlation: Coal vs Mortality
+  cor_coal <- cor.test(df_yr$coal_share_energy, df_yr$mortality_rate)
+  
+  # Correlation: Gas vs Mortality  
+  cor_gas <- cor.test(df_yr$gas_share_energy, df_yr$mortality_rate)
+  
+  cat(sprintf("  COAL: r = %.4f, p = %.4f\n", cor_coal$estimate, cor_coal$p.value))
+  cat(sprintf("  GAS:  r = %.4f, p = %.4f\n", cor_gas$estimate, cor_gas$p.value))
+  cat(sprintf("  Difference: r_coal - r_gas = %.4f\n\n", 
+              cor_coal$estimate - cor_gas$estimate))
+  
+  h1_results[[as.character(yr)]] <- list(
+    year = yr,
+    r_coal = cor_coal$estimate,
+    p_coal = cor_coal$p.value,
+    r_gas = cor_gas$estimate,
+    p_gas = cor_gas$p.value
+  )
+}
+```
+
+```{r h1-regression}
+# ============================================================================
+# H1: MULTIPLE REGRESSION WITH COAL AND GAS
+# ============================================================================
+# Model: mortality = beta_0 + beta_1*coal + beta_2*gas + epsilon
+# We compare beta_1 and beta_2 to see which has larger effect
+# ============================================================================
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("H1: MULTIPLE REGRESSION (Coal and Gas)\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+for (yr in test_years) {
+  cat(paste0("--- Year ", yr, " ---\n"))
+  
+  df_yr <- filter(df, year == yr)
+  
+  if (nrow(df_yr) < 10) {
+    cat("Insufficient data\n\n")
+    next
+  }
+  
+  # Multiple regression
+  model <- lm(mortality_rate ~ coal_share_energy + gas_share_energy, data = df_yr)
+  
+  cat("\nCoefficients:\n")
+  print(summary(model)$coefficients)
+  cat(sprintf("\nR-squared: %.4f\n\n", summary(model)$r.squared))
+}
+```
+
+```{r h1-visualization, fig.height=8, fig.cap="H1 Test: Coal vs Gas effects on mortality"}
+# ============================================================================
+# H1: VISUALIZATION
+# ============================================================================
+
+p1 <- ggplot(df_test_years, aes(x = coal_share_energy, y = mortality_rate)) +
+  geom_point(alpha = 0.5, color = "#2F2F2F") +
+  geom_smooth(method = "lm", color = "darkred", se = TRUE) +
+  facet_wrap(~year) +
+  labs(title = "Coal Share vs Mortality", x = "Coal Share (%)", y = "Mortality Rate") +
+  theme_minimal()
+
+p2 <- ggplot(df_test_years, aes(x = gas_share_energy, y = mortality_rate)) +
+  geom_point(alpha = 0.5, color = "#FF8C00") +
+  geom_smooth(method = "lm", color = "darkred", se = TRUE) +
+  facet_wrap(~year) +
+  labs(title = "Gas Share vs Mortality", x = "Gas Share (%)", y = "Mortality Rate") +
+  theme_minimal()
+
+# Combine plots
+gridExtra::grid.arrange(p1, p2, nrow = 2)
+```
+
+## Results: Coal versus Gas Effects on Mortality (H1)
+
+This section evaluates whether coal-based energy has a stronger adverse effect on mortality than gas-based energy, using both bivariate correlations and multiple regression analysis. The analysis is conducted separately for 2015, 2017, and 2019 to assess temporal robustness.
+
+The bivariate correlation results show a clear and stable pattern across all years. Coal energy share is strongly and positively correlated with mortality, with Pearson correlation coefficients of 0.343 in 2015, 0.342 in 2017, and 0.318 in 2019. In all cases, the correlations are highly statistically significant (p < 0.001). By contrast, gas energy share exhibits much weaker positive correlations with mortality, ranging between 0.09 and 0.12, none of which are statistically significant at conventional levels. The difference between the coal and gas correlations is large and remarkably stable across years, consistently exceeding 0.21.
+
+The multiple regression analysis confirms and strengthens these findings. When coal and gas shares are included jointly in the same model, both coefficients are positive and statistically significant in all years. However, the magnitude of the coal coefficient is substantially larger than that of gas. In 2015, a one percentage point increase in coal share is associated with an increase in mortality of approximately 1.22 units, compared to 0.45 units for gas. Similar differences persist in 2017 (1.18 versus 0.38) and 2019 (1.10 versus 0.36). In all specifications, the coal coefficient is roughly three times larger than the gas coefficient and is estimated with greater statistical precision.
+
+Model fit is also non-trivial, with R-squared values ranging from 0.13 to 0.15, indicating that fossil fuel composition explains a meaningful share of cross-country variation in mortality rates. Importantly, the relative ranking of coal and gas effects is fully stable across years.
+
+Overall, both correlation and regression evidence consistently support the alternative hypothesis. Coal-based energy exhibits a substantially stronger positive association with mortality than gas-based energy, and this result is robust across time and across empirical specifications.
+
+
+
+## H2: Nuclear Energy Health Effect
+
+This hypothesis examines whether the share of nuclear energy in the energy mix is associated with lower mortality rates. The motivation is that nuclear energy produces electricity with very low direct air pollutant emissions, which may translate into positive health outcomes relative to fossil-based energy sources.
+
+Formally, the hypothesis is expressed in terms of the population correlation between nuclear energy share and mortality. Let $\rho$ denote the true correlation coefficient. The hypotheses are defined as:
+
+$$
+\begin{aligned}
+H_0 &: \rho = 0 \quad \text{(no association)} \\
+H_1 &: \rho < 0 \quad \text{(higher nuclear share is associated with lower mortality)}
+\end{aligned}
+$$
+
+The alternative hypothesis is one-sided, reflecting the expectation of a protective health effect of nuclear energy.
+
+The empirical strategy consists of two complementary tests. First, we compute the Pearson correlation coefficient between nuclear energy share and mortality rates for each selected year, using all available countries. This analysis is repeated for the subsample of nuclear-using countries only, in order to assess whether variation in nuclear intensity among users is associated with mortality outcomes.
+
+Second, we perform a two-sample comparison of mortality rates between countries that use nuclear energy and those that do not. Specifically, we compare mean mortality rates across the two groups using Welch’s two-sample t-test, which does not assume equal variances. As a robustness check, we also employ the Wilcoxon rank-sum test as a non-parametric alternative. Both tests are conducted with a one-sided alternative, testing whether mortality is lower in nuclear-using countries.
+
+All analyses are performed separately for multiple years to assess temporal robustness. Consistent negative correlations and systematically lower mortality in nuclear-using countries across years are interpreted as evidence in favor of the alternative hypothesis.
+
+Finally, the relationship between nuclear energy and mortality is visualized using boxplots and jittered observations comparing nuclear and non-nuclear countries, faceted by year. These visualizations provide an intuitive assessment of group differences, dispersion, and potential outliers, supporting the interpretation of the statistical results.
+
+```{r h2-correlation}
+# ============================================================================
+# H2: NUCLEAR CORRELATION TEST
+# ============================================================================
+# Test correlation between nuclear share and mortality
+# We also compare nuclear-using vs non-nuclear countries
+# ============================================================================
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("H2: NUCLEAR ENERGY AND MORTALITY\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+h2_results <- list()
+
+for (yr in test_years) {
+  cat(paste0("--- Year ", yr, " ---\n"))
+  
+  df_yr <- filter(df, year == yr)
+  
+  if (nrow(df_yr) < 10) {
+    cat("Insufficient data\n\n")
+    next
+  }
+  
+  # Test 1: Correlation (among all countries)
+  cor_test <- cor.test(
+    df_yr$nuclear_share_energy, 
+    df_yr$mortality_rate,
+    method = "pearson"
+  )
+  
+  cat("Correlation test (all countries):\n")
+  cat(sprintf("  r = %.4f, p = %.4f\n\n", cor_test$estimate, cor_test$p.value))
+  
+  # Test 2: Correlation (only nuclear users)
+  df_nuclear <- filter(df_yr, nuclear_share_energy > 0)
+  
+  if (nrow(df_nuclear) >= 5) {
+    cor_nuclear <- cor.test(
+      df_nuclear$nuclear_share_energy,
+      df_nuclear$mortality_rate,
+      method = "pearson"
+    )
+    cat("Correlation (nuclear users only, n =", nrow(df_nuclear), "):\n")
+    cat(sprintf("  r = %.4f, p = %.4f\n\n", cor_nuclear$estimate, cor_nuclear$p.value))
+  }
+  
+  h2_results[[as.character(yr)]] <- list(
+    year = yr,
+    r = cor_test$estimate,
+    p_value = cor_test$p.value
+  )
+}
+```
+
+```{r h2-ttest}
+# ============================================================================
+# H2: TWO-SAMPLE T-TEST (Nuclear vs Non-Nuclear Countries)
+# ============================================================================
+# Compare mean mortality between countries with/without nuclear energy
+# Following course methods: Welch's t-test (doesn't assume equal variances)
+# ============================================================================
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("H2: TWO-SAMPLE T-TEST (Nuclear vs Non-Nuclear)\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+for (yr in test_years) {
+  cat(paste0("--- Year ", yr, " ---\n"))
+  
+  df_yr <- filter(df, year == yr)
+  
+  nuclear_group <- df_yr[df_yr$has_nuclear == "Nuclear User", "mortality_rate"]
+  no_nuclear_group <- df_yr[df_yr$has_nuclear == "No Nuclear", "mortality_rate"]
+  
+  if (length(nuclear_group) < 3 || length(no_nuclear_group) < 3) {
+    cat("Insufficient data in one or both groups\n\n")
+    next
+  }
+  
+  # Welch's t-test
+  t_test <- t.test(nuclear_group, no_nuclear_group, alternative = "less")
+  
+  # Also run Wilcoxon as non-parametric alternative
+  wilcox_test <- wilcox.test(nuclear_group, no_nuclear_group, alternative = "less")
+  
+  cat(sprintf("  Nuclear users (n=%d): mean = %.2f, sd = %.2f\n", 
+              length(nuclear_group), mean(nuclear_group), sd(nuclear_group)))
+  cat(sprintf("  Non-nuclear (n=%d): mean = %.2f, sd = %.2f\n",
+              length(no_nuclear_group), mean(no_nuclear_group), sd(no_nuclear_group)))
+  cat(sprintf("\n  Welch t-test: t = %.4f, p = %.4f\n", t_test$statistic, t_test$p.value))
+  cat(sprintf("  Wilcoxon test: W = %.1f, p = %.4f\n\n", 
+              wilcox_test$statistic, wilcox_test$p.value))
+}
+```
+
+```{r h2-visualization, fig.cap="H2 Test: Nuclear energy effect on mortality"}
+# ============================================================================
+# H2: VISUALIZATION
+# ============================================================================
+
+ggplot(df_test_years, aes(x = has_nuclear, y = mortality_rate, fill = has_nuclear)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 1) +
+  facet_wrap(~year) +
+  scale_fill_manual(values = c("Nuclear User" = "#9400D3", "No Nuclear" = "#A9A9A9")) +
+  labs(
+    title = "H2: Mortality by Nuclear Energy Status (Temporal Robustness)",
+    x = "Nuclear Status",
+    y = "Mortality Rate (per 100,000)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.title = element_text(face = "bold", size = 14))
+```
+
+## Results: Nuclear Energy and Mortality (H2)
+
+This section evaluates the relationship between nuclear energy use and mortality, using both correlation analysis and two-sample comparisons between nuclear and non-nuclear countries. The analysis is conducted for 2015, 2017, and 2019 to assess temporal robustness.
+
+The correlation analysis using the full sample of countries reveals a positive and statistically significant association between nuclear energy share and mortality in all examined years. Pearson correlation coefficients range from 0.20 to 0.24 and are statistically significant at the 1 percent level. This pattern indicates that, at the aggregate level, countries with higher nuclear energy shares tend to exhibit higher mortality rates.
+
+When restricting the sample to nuclear-using countries only, the correlation between nuclear energy share and mortality remains positive but becomes statistically insignificant in all years. Correlation coefficients are slightly above 0.25, but p-values exceed conventional significance thresholds, likely reflecting the limited sample size of nuclear users and reduced statistical power.
+
+The two-sample comparison between nuclear and non-nuclear countries provides further insight. In all years, nuclear-using countries display substantially higher average mortality rates than non-nuclear countries. However, one-sided Welch t-tests and Wilcoxon rank-sum tests fail to reject the null hypothesis that mortality is lower in nuclear countries. In fact, the very large p-values indicate that mortality is not statistically lower among nuclear users, and the observed differences run in the opposite direction of the hypothesized effect.
+
+Taken together, the results provide no empirical support for the hypothesis that nuclear energy is associated with lower mortality. On the contrary, simple correlations suggest a positive association between nuclear energy and mortality, while group comparisons show higher average mortality in nuclear countries. These findings highlight the importance of accounting for confounding factors, such as income levels, demographic structure, and industrialization, which are likely correlated with both nuclear adoption and mortality outcomes.
+
+
+## HTest: GDP as Confounder
+
+Economic development may act as a confounding factor in the relationship between energy composition and mortality. Wealthier countries typically exhibit lower mortality due to better healthcare systems, infrastructure, and living conditions, and at the same time are more likely to invest in cleaner energy technologies. As a result, any observed association between energy shares and mortality may be partially driven by differences in income levels rather than by energy composition itself.
+
+To assess the role of GDP as a potential confounder, we adopt a two-step approach. First, we examine the correlation between GDP per capita and mortality rates, as well as the correlation between GDP per capita and low-carbon energy share. Evidence that GDP is correlated with both variables would indicate the presence of confounding and motivate the inclusion of GDP as a control variable.
+
+Second, we estimate linear regression models that explicitly control for GDP per capita. Specifically, we compare a baseline model relating mortality to low-carbon energy share with an augmented model that includes GDP per capita as an additional covariate. Changes in the magnitude, sign, or statistical significance of the low-carbon energy coefficient after controlling for GDP provide evidence on whether the original relationship is robust or instead driven by economic development.
+
+Model fit is also compared using the R-squared statistic. An increase in explanatory power after including GDP suggests that income levels explain an important portion of the variation in mortality rates.
+
+This confounding analysis allows us to distinguish between a direct association between energy composition and mortality and an indirect relationship mediated by economic development, improving the credibility and interpretability of the empirical results.
+
+```{r htest-correlations}
+# ============================================================================
+# HTest: GDP CONFOUNDING ANALYSIS
+# ============================================================================
+# Check if GDP is correlated with both energy shares and mortality
+# If so, we need to control for it in our analyses
+# ============================================================================
+
+cat(paste(rep("=", 70), collapse = ""), "\n")
+cat("HTest: GDP CONFOUNDING ANALYSIS\n")
+cat(paste(rep("=", 70), collapse = ""), "\n\n")
+
+# Check if GDP variable exists
+if ("gdp_per_capita" %in% names(df)) {
+  
+  for (yr in test_years) {
+    cat(paste0("--- Year ", yr, " ---\n"))
+    
+    df_yr <- filter(df, year == yr)
+    
+    # GDP vs Mortality
+    cor_gdp_mort <- cor.test(df_yr$gdp_per_capita, df_yr$mortality_rate, 
+                              use = "complete.obs")
+    cat(sprintf("GDP vs Mortality: r = %.4f, p = %.4f\n", 
+                cor_gdp_mort$estimate, cor_gdp_mort$p.value))
+    
+    # GDP vs Low Carbon
+    cor_gdp_lc <- cor.test(df_yr$gdp_per_capita, df_yr$low_carbon_share_energy,
+                           use = "complete.obs")
+    cat(sprintf("GDP vs Low-Carbon: r = %.4f, p = %.4f\n\n", 
+                cor_gdp_lc$estimate, cor_gdp_lc$p.value))
+  }
+  
+} else {
+  cat("GDP variable not available in dataset.\n")
+  cat("Confounding analysis cannot be performed.\n")
+  cat("Consider adding GDP data for a more robust analysis.\n")
+}
+```
+
+```{r htest-controlled-regression}
+# ============================================================================
+# HTest: REGRESSION CONTROLLING FOR GDP
+# ============================================================================
+# If GDP data available, fit model: mortality ~ low_carbon + GDP
+# Compare to model without GDP to see if conclusions change
+# ============================================================================
+
+if ("gdp_per_capita" %in% names(df)) {
+  
+  cat(paste(rep("=", 70), collapse = ""), "\n")
+  cat("HTest: REGRESSION WITH GDP CONTROL\n")
+  cat(paste(rep("=", 70), collapse = ""), "\n\n")
+  
+  for (yr in test_years) {
+    cat(paste0("--- Year ", yr, " ---\n"))
+    
+    df_yr <- na.omit(filter(df, year == yr))
+    
+    # Model without GDP
+    model1 <- lm(mortality_rate ~ low_carbon_share_energy, data = df_yr)
+    
+    # Model with GDP
+    model2 <- lm(mortality_rate ~ low_carbon_share_energy + gdp_per_capita, data = df_yr)
+    
+    cat("\nModel 1 (without GDP control):\n")
+    print(summary(model1)$coefficients)
+    
+    cat("\nModel 2 (with GDP control):\n")
+    print(summary(model2)$coefficients)
+    
+    cat(sprintf("\nR-squared without GDP: %.4f\n", summary(model1)$r.squared))
+    cat(sprintf("R-squared with GDP: %.4f\n\n", summary(model2)$r.squared))
+  }
+}
+```
+## Conclusion for HTest: GDP as Confounder
+
+The confounding analysis provides clear evidence that economic development plays an important role in the relationship between energy composition and mortality.
+
+First, GDP per capita is negatively correlated with mortality in all examined years, although the correlation is not statistically significant at conventional levels. This pattern is consistent with the idea that wealthier countries tend to exhibit lower mortality rates, even if the effect is estimated imprecisely in simple bivariate correlations.
+
+Second, GDP per capita is strongly and significantly negatively correlated with the share of low-carbon energy in all years, with correlation coefficients around -0.24 to -0.25. This indicates that countries with higher income levels tend to rely less on low-carbon energy in relative terms, highlighting a systematic relationship between economic development and energy composition.
+
+When GDP is included as a control variable in the regression models, several important changes emerge. The explanatory power of the models increases substantially, with R-squared values rising from below 0.02 to approximately 0.03 across all years, indicating that GDP explains a non-negligible share of the variation in mortality rates. The coefficient on GDP per capita is consistently negative and statistically significant or marginally significant, confirming its independent association with lower mortality.
+
+Importantly, controlling for GDP does not reverse the sign of the low-carbon energy coefficient, which remains negative in all specifications. However, the coefficient remains statistically insignificant, suggesting that the previously observed weak association between low-carbon energy share and mortality is not driven by income differences but also cannot be identified as a robust direct effect.
+
+Overall, these results indicate that GDP per capita acts as a relevant confounding factor and should be controlled for in cross-country analyses of energy and health outcomes. At the same time, even after accounting for economic development, there is no statistically significant evidence that low-carbon energy share has a direct effect on mortality in the data considered.
+
+# Conclusions
+
+This analysis examined the relationship between energy composition and air-pollution-related mortality using cross-country data over the period 2010–2019. The results highlight substantial heterogeneity across energy sources and provide several insights into the health implications of different energy technologies.
+
+First, the share of low-carbon energy—aggregating renewables and nuclear—shows a consistently negative but weak and statistically insignificant association with mortality. This finding suggests that, in a simple bivariate framework, the potential health benefits of low-carbon energy are not sufficiently strong to be detected in aggregate mortality outcomes across countries. Controlling for economic development does not alter the sign of this relationship, but the effect remains statistically insignificant.
+
+Second, fossil fuel composition appears to matter substantially. Coal exhibits a strong, positive, and statistically significant association with mortality, while natural gas shows a much weaker effect. Both correlation and multiple regression analyses consistently indicate that coal has a markedly stronger adverse association with mortality than gas, and this result is robust across years and empirical specifications. These findings are consistent with the higher pollution intensity of coal combustion relative to other fossil fuels.
+
+Third, contrary to the initial hypothesis, nuclear energy is not associated with lower mortality in the data. Simple correlations and group comparisons indicate higher average mortality rates in nuclear-using countries, although these patterns are likely driven by confounding factors such as income levels, industrial structure, and demographic composition rather than a causal effect of nuclear energy itself.
+
+Finally, the confounding analysis confirms that GDP per capita plays an important role in explaining cross-country differences in mortality and energy composition. While economic development is associated with lower mortality, it does not explain away the weak and statistically insignificant relationship between low-carbon energy share and mortality.
+
+Overall, the results suggest that while reducing reliance on highly polluting fossil fuels—particularly coal—may yield clear health benefits, the direct impact of low-carbon energy adoption on aggregate mortality is more difficult to identify using simple cross-country statistical relationships. These findings highlight the importance of accounting for confounding factors and suggest that more granular data, causal identification strategies, and pollutant-specific health outcomes may be required to fully assess the health effects of the energy transition.
