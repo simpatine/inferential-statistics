@@ -37,6 +37,7 @@ import sys
 
 
 
+
 def clean_energy_data(data, year_period=[2010, 2020]):
     """
     Clean the OWID energy dataset.
@@ -107,6 +108,19 @@ def clean_energy_data(data, year_period=[2010, 2020]):
         "wind_consumption",
         "biofuel_consumption",
         "other_renewable_consumption",
+        # Electricity generation columns (fallback for computing shares)
+        "electricity_generation",
+        "fossil_electricity",
+        "coal_electricity",
+        "gas_electricity",
+        "oil_electricity",
+        "low_carbon_electricity",
+        "nuclear_electricity",
+        "hydro_electricity",
+        "solar_electricity",
+        "wind_electricity",
+        "biofuel_electricity",
+        "other_renewable_electricity",
         # Optional: GDP for confounding analysis
         "gdp",
         "population",
@@ -120,7 +134,14 @@ def clean_energy_data(data, year_period=[2010, 2020]):
     # This is the key improvement for nations lacking pre-calculated shares
     print("  Computing missing energy shares from consumption values...")
     
-    # Check if we have primary energy consumption (needed for all calculations)
+    # We use a two-tier approach:
+    # 1. Primary method: Use primary_energy_consumption (includes all energy uses)
+    # 2. Fallback method: Use electricity_generation (when primary energy is missing/zero)
+    
+    computed_count_primary = 0
+    computed_count_electricity = 0
+    
+    # PRIMARY METHOD: Compute from primary energy consumption
     if "primary_energy_consumption" in data_clean.columns:
         # Define mapping: share_column -> consumption_column
         share_mappings = {
@@ -135,7 +156,6 @@ def clean_energy_data(data, year_period=[2010, 2020]):
             "other_renewables_share_energy": "other_renewable_consumption",
         }
         
-        computed_count = 0
         for share_col, consumption_col in share_mappings.items():
             if consumption_col in data_clean.columns:
                 # Create share column if it doesn't exist
@@ -156,41 +176,90 @@ def clean_energy_data(data, year_period=[2010, 2020]):
                         data_clean.loc[mask, consumption_col] / 
                         data_clean.loc[mask, "primary_energy_consumption"]
                     ) * 100
-                    computed_count += mask.sum()
+                    computed_count_primary += mask.sum()
+    
+    # FALLBACK METHOD: Compute from electricity generation
+    # This handles cases where primary energy data is missing or zero
+    if "electricity_generation" in data_clean.columns:
+        # Define mapping: share_column -> electricity_column
+        electricity_mappings = {
+            "coal_share_energy": "coal_electricity",
+            "gas_share_energy": "gas_electricity",
+            "oil_share_energy": "oil_electricity",
+            "nuclear_share_energy": "nuclear_electricity",
+            "hydro_share_energy": "hydro_electricity",
+            "solar_share_energy": "solar_electricity",
+            "wind_share_energy": "wind_electricity",
+            "biofuel_share_energy": "biofuel_electricity",
+            "other_renewables_share_energy": "other_renewable_electricity",
+        }
         
-        # Compute composite shares (fossil and low-carbon)
-        # Fossil share = coal + gas + oil
-        if all(col in data_clean.columns for col in ["coal_share_energy", "gas_share_energy", "oil_share_energy"]):
-            if "fossil_share_energy" not in data_clean.columns:
-                data_clean["fossil_share_energy"] = None
-            
-            mask = data_clean["fossil_share_energy"].isna()
-            if mask.sum() > 0:
-                data_clean.loc[mask, "fossil_share_energy"] = (
-                    data_clean.loc[mask, "coal_share_energy"].fillna(0) +
-                    data_clean.loc[mask, "gas_share_energy"].fillna(0) +
-                    data_clean.loc[mask, "oil_share_energy"].fillna(0)
+        for share_col, electricity_col in electricity_mappings.items():
+            if electricity_col in data_clean.columns:
+                # Create share column if it doesn't exist
+                if share_col not in data_clean.columns:
+                    data_clean[share_col] = None
+                
+                # Compute share where it's STILL missing after primary method
+                # This catches cases where primary_energy_consumption was missing or zero
+                mask = (
+                    data_clean[share_col].isna() & 
+                    data_clean[electricity_col].notna() & 
+                    data_clean["electricity_generation"].notna() &
+                    (data_clean["electricity_generation"] > 0)
                 )
+                
+                if mask.sum() > 0:
+                    data_clean.loc[mask, share_col] = (
+                        data_clean.loc[mask, electricity_col] / 
+                        data_clean.loc[mask, "electricity_generation"]
+                    ) * 100
+                    computed_count_electricity += mask.sum()
+    
+    # COMPUTE COMPOSITE SHARES (fossil and low-carbon)
+    # These work regardless of whether we used primary energy or electricity
+    
+    # Fossil share = coal + gas + oil
+    if all(col in data_clean.columns for col in ["coal_share_energy", "gas_share_energy", "oil_share_energy"]):
+        if "fossil_share_energy" not in data_clean.columns:
+            data_clean["fossil_share_energy"] = None
         
-        # Low-carbon share = nuclear + renewables
-        renewable_cols = ["hydro_share_energy", "solar_share_energy", "wind_share_energy", 
-                         "biofuel_share_energy", "other_renewables_share_energy"]
-        available_renewable_cols = [col for col in renewable_cols if col in data_clean.columns]
+        mask = data_clean["fossil_share_energy"].isna()
+        if mask.sum() > 0:
+            data_clean.loc[mask, "fossil_share_energy"] = (
+                data_clean.loc[mask, "coal_share_energy"].fillna(0) +
+                data_clean.loc[mask, "gas_share_energy"].fillna(0) +
+                data_clean.loc[mask, "oil_share_energy"].fillna(0)
+            )
+    
+    # Low-carbon share = nuclear + renewables
+    renewable_cols = ["hydro_share_energy", "solar_share_energy", "wind_share_energy", 
+                     "biofuel_share_energy", "other_renewables_share_energy"]
+    available_renewable_cols = [col for col in renewable_cols if col in data_clean.columns]
+    
+    if "nuclear_share_energy" in data_clean.columns and available_renewable_cols:
+        if "low_carbon_share_energy" not in data_clean.columns:
+            data_clean["low_carbon_share_energy"] = None
         
-        if "nuclear_share_energy" in data_clean.columns and available_renewable_cols:
-            if "low_carbon_share_energy" not in data_clean.columns:
-                data_clean["low_carbon_share_energy"] = None
-            
-            mask = data_clean["low_carbon_share_energy"].isna()
-            if mask.sum() > 0:
-                renewable_sum = sum(data_clean.loc[mask, col].fillna(0) for col in available_renewable_cols)
-                data_clean.loc[mask, "low_carbon_share_energy"] = (
-                    data_clean.loc[mask, "nuclear_share_energy"].fillna(0) + renewable_sum
-                )
-        
-        print(f"  Computed {computed_count} missing share values from consumption data")
+        mask = data_clean["low_carbon_share_energy"].isna()
+        if mask.sum() > 0:
+            renewable_sum = sum(data_clean.loc[mask, col].fillna(0) for col in available_renewable_cols)
+            data_clean.loc[mask, "low_carbon_share_energy"] = (
+                data_clean.loc[mask, "nuclear_share_energy"].fillna(0) + renewable_sum
+            )
+    
+    # Report what we accomplished
+    total_computed = computed_count_primary + computed_count_electricity
+    if total_computed > 0:
+        print(f"  Computed {total_computed} missing share values:")
+        if computed_count_primary > 0:
+            print(f"    - {computed_count_primary} from primary energy consumption")
+        if computed_count_electricity > 0:
+            print(f"    - {computed_count_electricity} from electricity generation (fallback)")
     else:
-        print("  Warning: primary_energy_consumption not available - cannot compute missing shares")
+        if "primary_energy_consumption" not in data_clean.columns and "electricity_generation" not in data_clean.columns:
+            print("  Warning: Neither primary_energy_consumption nor electricity_generation available")
+            print("           Cannot compute missing shares")
     
     # Step 5: Create GDP per capita if GDP and population are available
     if "gdp" in data_clean.columns and "population" in data_clean.columns:
@@ -213,9 +282,30 @@ def clean_energy_data(data, year_period=[2010, 2020]):
     energy_cols = [col for col in data_clean.columns if "share_energy" in col]
     initial_rows = len(data_clean)
     data_clean = data_clean.dropna(subset=energy_cols, how="all")
-    dropped = initial_rows - len(data_clean)
-    if dropped > 0:
-        print(f"  Dropped {dropped} rows with all-missing energy data")
+    dropped_missing = initial_rows - len(data_clean)
+    if dropped_missing > 0:
+        print(f"  Dropped {dropped_missing} rows with all-missing energy data")
+    
+    # Step 8: Drop rows where energy shares sum to zero (insufficient data after computation)
+    # This catches cases where shares exist but are all zero or negligible
+    if energy_cols:
+        # Compute sum of all energy shares for each row
+        data_clean["_total_share"] = data_clean[energy_cols].sum(axis=1)
+        
+        # Identify rows with zero or near-zero total (< 0.01%)
+        zero_share_mask = data_clean["_total_share"] < 0.01
+        dropped_zero = zero_share_mask.sum()
+        
+        if dropped_zero > 0:
+            # Show which countries/years are being dropped (sample for diagnostics)
+            dropped_sample = data_clean[zero_share_mask][["country", "year", "iso_code"]].head(10)
+            print(f"  Dropped {dropped_zero} rows where energy shares sum to zero")
+            print(f"  Sample of dropped rows: {list(zip(dropped_sample['country'], dropped_sample['year']))}")
+            
+            data_clean = data_clean[~zero_share_mask].copy()
+        
+        # Remove temporary column
+        data_clean = data_clean.drop(columns=["_total_share"])
     
     print(f"  Final energy data: {data_clean.shape[0]} rows, {data_clean.shape[1]} columns")
     
